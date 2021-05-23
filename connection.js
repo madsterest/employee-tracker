@@ -1,7 +1,7 @@
 const mysql = require("mysql");
 const inquirer = require("inquirer");
 require("dotenv").config();
-
+const cTable = require("console.table");
 // const readFunction = require("./function/read");
 
 const connection = mysql.createConnection({
@@ -55,7 +55,7 @@ const init = () => {
 const viewTable = (tableName) => {
   connection.query(`SELECT * FROM ${tableName}`, (err, res) => {
     if (err) throw err;
-    console.log(res);
+    console.table(res);
     init();
   });
 };
@@ -74,18 +74,6 @@ const newDep = () => {
     });
 };
 
-const readRole = () => {
-  connection.query(`SELECT title FROM role`, (err, results) => {
-    if (err) throw err;
-    const choiceArray = [];
-    results.forEach(({ roleTitle }) => {
-      choiceArray.push(roleTitle);
-      return choiceArray;
-    });
-    newEmploy(choiceArray);
-  });
-};
-
 const newEmploy = () => {
   connection.query(`SELECT title FROM role`, (err, results) => {
     if (err) throw err;
@@ -93,7 +81,17 @@ const newEmploy = () => {
     inquirer
       .prompt([
         {
-          name: "choice",
+          name: "first_name",
+          type: "input",
+          message: "What is the employees first name?",
+        },
+        {
+          name: "last_name",
+          type: "input",
+          message: "What is the employees last name?",
+        },
+        {
+          name: "role",
           type: "rawlist",
           choices() {
             let choiceArray = [];
@@ -107,6 +105,7 @@ const newEmploy = () => {
       ])
       .then((input) => {
         console.log(input);
+        roleIdQuery(input);
       });
   });
 };
@@ -123,7 +122,34 @@ const newDepQuery = (input) => {
     });
 };
 
-const newEmployQuery = () => {};
+const employQuery = (input, response) => {
+  connection.query(
+    `INSERT INTO employee SET ?`,
+    {
+      first_name: input.first_name,
+      last_name: input.last_name,
+      role_id: response[0].id,
+    },
+    (err, res) => {
+      if (err) throw err;
+      console.log(res);
+    }
+  );
+};
+
+const roleIdQuery = (input) => {
+  connection.query(
+    `SELECT id FROM role WHERE ?`,
+    {
+      title: input.role,
+    },
+    (err, res) => {
+      if (err) throw err;
+      console.log(res);
+      employQuery(input, res);
+    }
+  );
+};
 
 connection.connect((err) => {
   if (err) throw err;
