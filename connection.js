@@ -2,7 +2,6 @@ const mysql = require("mysql");
 const inquirer = require("inquirer");
 require("dotenv").config();
 const cTable = require("console.table");
-// const readFunction = require("./function/read");
 
 const connection = mysql.createConnection({
   host: "localhost",
@@ -40,40 +39,56 @@ const init = () => {
       } else if (data.select === "Add New Employee") {
         newEmploy();
       } else if (data.select === "View Departments") {
-        let tableName = "department";
-        viewTable(tableName);
+        viewDepartment();
       } else if (data.select === "View Roles") {
-        let tableName = "role";
-        viewTable(tableName);
+        viewRole();
       } else if (data.select === "View Employees") {
-        let tableName = "employee";
-        //
         viewEmployee();
       } else if (data.select === "Update Employee Roles") {
-        //updated function(Employees)
+        updateRole();
       } else if (data.select === "Exit") {
+        connection.close();
         return;
       }
     });
 };
 
-const viewTable = (tableName) => {
-  connection.query(`SELECT * FROM ${tableName}`, (err, res) => {
-    if (err) throw err;
-    console.table(res);
-    init();
-  });
+const viewEmployee = () => {
+  connection.query(
+    `SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name, " ", manager.last_name) AS manager 
+    FROM employee 
+    INNER JOIN role ON employee.role_id = role.id
+    INNER JOIN department ON role.department_id = department.id
+    LEFT JOIN employee manager ON employee.manager_id = manager.id`,
+    (err, results) => {
+      if (err) throw err;
+      console.table(results);
+      init();
+    }
+  );
 };
 
-// const viewEmployee = () => {
-//   connection.query(
-//     `SELECT first_name, last_name, title, manager_id FROM employee INNER JOIN `,
-//     (err, results) => {
-//       if (err) throw err;
-//       console.log(results);
-//     }
-//   );
-// };
+const viewDepartment = () => {
+  connection.query(
+    `SELECT id, name AS department FROM department`,
+    (err, res) => {
+      if (err) throw err;
+      console.table(res);
+      init();
+    }
+  );
+};
+
+const viewRole = () => {
+  connection.query(
+    `SELECT role.title, role.salary, department.name AS department FROM role INNER JOIN department ON role.department_id = department.id `,
+    (err, res) => {
+      if (err) throw err;
+      console.table(res);
+      init();
+    }
+  );
+};
 
 const newDep = () => {
   inquirer
@@ -85,11 +100,24 @@ const newDep = () => {
       },
     ])
     .then((input) => {
-      newDepQuery(input);
+      connection.query(
+        `INSERT INTO department SET ?`,
+        {
+          name: input.depName,
+        },
+        (err, res) => {
+          if (err) throw err;
+          console.log(`New Department has been added`);
+          init();
+        }
+      );
     });
 };
 
 const newEmploy = () => {
+  let choiceArray = [];
+  let managerArray = ["None"];
+
   connection.query(
     `SELECT title FROM role; SELECT first_name, last_name FROM employee`,
     (err, results) => {
@@ -110,7 +138,6 @@ const newEmploy = () => {
             name: "role",
             type: "rawlist",
             choices() {
-              let choiceArray = [];
               results[0].forEach((roleTitle) => {
                 choiceArray.push(roleTitle.title);
               });
@@ -122,7 +149,6 @@ const newEmploy = () => {
             name: "manager",
             type: "rawlist",
             choices() {
-              let managerArray = ["None"];
               results[1].forEach((managerName) => {
                 const manager = `${managerName.first_name} ${managerName.last_name}`;
                 managerArray.push(manager);
@@ -132,15 +158,48 @@ const newEmploy = () => {
             message: "What is the employees role?",
           },
         ])
-        .then((input) => {
-          console.log(input);
-          IdQuery(input);
+        .then((answer) => {
+          console.log(answer);
+          let roleId = choiceArray.indexOf(answer.role) + 1;
+
+          if (answer.manager === "None") {
+            connection.query(
+              `INSERT INTO employee SET ?`,
+              {
+                first_name: answer.first_name,
+                last_name: answer.last_name,
+                role_id: roleId,
+              },
+              (err, res) => {
+                if (err) throw err;
+                console.log(`Your new employee has been added`);
+                init();
+              }
+            );
+          } else {
+            let managerId = managerArray.indexOf(answer.manager);
+            connection.query(
+              `INSERT INTO employee SET ?`,
+              {
+                first_name: answer.first_name,
+                last_name: answer.last_name,
+                role_id: roleId,
+                manager_id: managerId,
+              },
+              (err, res) => {
+                if (err) throw err;
+                console.log(`Your new employee has been added`);
+                init();
+              }
+            );
+          }
         });
     }
   );
 };
 
 const newRole = () => {
+  let departmentArray = [];
   connection.query(`SELECT name FROM department`, (err, result) => {
     if (err) throw err;
 
@@ -160,7 +219,6 @@ const newRole = () => {
           name: "department",
           type: "rawlist",
           choices() {
-            let departmentArray = [];
             result.forEach((departmentName) => {
               departmentArray.push(departmentName);
             });
@@ -168,98 +226,72 @@ const newRole = () => {
           },
         },
       ])
-      .then((answers) => {
-        departmentIDQuery(answers);
+      .then((answer) => {
+        let departmentId = departmentArray.indexOf(answer.department) + 1;
+        connection.query(
+          `INSERT INTO role SET ?`,
+          {
+            title: answer.roleName,
+            salary: answer.salary,
+            department_id: departmentId,
+          },
+          (err, res) => {
+            console.log(`New Role has been added`);
+            init();
+          }
+        );
       });
   });
 };
 
-const newDepQuery = (input) => {
-  connection
-    .query(`INSERT INTO department SET ?`, {
-      name: input.depName,
-    })
-    .then((err, res) => {
-      if (err) throw err;
-      console.log(`New Department has been added`);
-      init();
-    });
-};
-
-const employQuery = (input, response) => {
-  connection.query(
-    `INSERT INTO employee SET ?`,
-    {
-      first_name: input.first_name,
-      last_name: input.last_name,
-      role_id: response[0][0].id,
-      manager_id: response[1][0].id || 0,
-    },
-    (err, res) => {
-      if (err) throw err;
-      console.log(`Your new employee has been added`);
-      init();
-    }
-  );
-};
-const employManagerQuery = (input, response) => {
-  connection.query(
-    `INSERT INTO employee SET ?`,
-    {
-      first_name: input.first_name,
-      last_name: input.last_name,
-      role_id: response[0][0].id,
-    },
-    (err, res) => {
-      if (err) throw err;
-      console.log(`Your new employee has been added`);
-      init();
-    }
-  );
-};
-
-const IdQuery = (input) => {
-  const managerName = input.manager.split(" ");
+const updateRole = () => {
+  let employArray = [];
+  let roleArray = [];
 
   connection.query(
-    `SELECT id FROM role WHERE title = ?; SELECT id FROM employee WHERE first_name = ?`,
-    [input.role, managerName[0]],
-    (err, res) => {
+    `SELECT CONCAT(first_name, " ", last_name) AS name FROM employee; SELECT title FROM role`,
+    (err, result) => {
       if (err) throw err;
-      console.log(res[0][0], res[1][0]);
-      if (res[1][0]) {
-        employQuery(input, res);
-      } else {
-        employManagerQuery(input, res);
-      }
-    }
-  );
-};
+      console.log(result);
+      inquirer
+        .prompt([
+          {
+            name: "employeeName",
+            type: "rawlist",
+            choices() {
+              result[0].forEach((nameOfEmployee) => {
+                employArray.push(nameOfEmployee.name);
+              });
+              return employArray;
+            },
+            message: "Which employee would you like to update?",
+          },
+          {
+            name: "roleName",
+            type: "rawlist",
+            choices() {
+              result[1].forEach((nameOfrole) => {
+                roleArray.push(nameOfrole.title);
+              });
+              return roleArray;
+            },
+            message: "What is their new role title?",
+          },
+        ])
+        .then((answer) => {
+          let employId = employArray.indexOf(answer.employeeName) + 1;
+          let roleId = roleArray.indexOf(answer.roleName) + 1;
 
-const departmentIDQuery = (input) => {
-  connection.query(
-    `SELECT id FROM department WHERE ?`,
-    {
-      name: input.department,
-    },
-    (err, res) => {
-      if (err) throw err;
-      roleQuery(input, res);
-    }
-  );
-};
-
-const roleQuery = (input, results) => {
-  connection.query(
-    `INSERT INTO role SET ?`,
-    {
-      title: input.roleName,
-      salary: input.salary,
-      department_id: results[0].id,
-    },
-    (err, res) => {
-      console.log(`New Role has been added`);
-      init();
+          connection.query(
+            `UPDATE employee SET role_id=? WHERE id=?`,
+            [roleId, employId],
+            (err, res) => {
+              if (err) throw err;
+              console.log(`Updated Complete`);
+              init();
+            }
+          );
+        });
     }
   );
 };
