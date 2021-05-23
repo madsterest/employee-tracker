@@ -10,6 +10,7 @@ const connection = mysql.createConnection({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
+  multipleStatements: true,
 });
 
 const init = () => {
@@ -27,6 +28,7 @@ const init = () => {
           "View Roles",
           "View Employees",
           "Update Employee Roles",
+          "Exit",
         ],
       },
     ])
@@ -34,7 +36,7 @@ const init = () => {
       if (data.select === "Add New Department") {
         newDep();
       } else if (data.select === "Add New Role") {
-        //create function(Role)
+        newRole();
       } else if (data.select === "Add New Employee") {
         newEmploy();
       } else if (data.select === "View Departments") {
@@ -45,9 +47,12 @@ const init = () => {
         viewTable(tableName);
       } else if (data.select === "View Employees") {
         let tableName = "employee";
-        viewTable(tableName);
+        //
+        viewEmployee();
       } else if (data.select === "Update Employee Roles") {
         //updated function(Employees)
+      } else if (data.select === "Exit") {
+        return;
       }
     });
 };
@@ -59,6 +64,16 @@ const viewTable = (tableName) => {
     init();
   });
 };
+
+// const viewEmployee = () => {
+//   connection.query(
+//     `SELECT first_name, last_name, title, manager_id FROM employee INNER JOIN `,
+//     (err, results) => {
+//       if (err) throw err;
+//       console.log(results);
+//     }
+//   );
+// };
 
 const newDep = () => {
   inquirer
@@ -75,37 +90,86 @@ const newDep = () => {
 };
 
 const newEmploy = () => {
-  connection.query(`SELECT title FROM role`, (err, results) => {
+  connection.query(
+    `SELECT title FROM role; SELECT first_name, last_name FROM employee`,
+    (err, results) => {
+      if (err) throw err;
+      inquirer
+        .prompt([
+          {
+            name: "first_name",
+            type: "input",
+            message: "What is the employees first name?",
+          },
+          {
+            name: "last_name",
+            type: "input",
+            message: "What is the employees last name?",
+          },
+          {
+            name: "role",
+            type: "rawlist",
+            choices() {
+              let choiceArray = [];
+              results[0].forEach((roleTitle) => {
+                choiceArray.push(roleTitle.title);
+              });
+              return choiceArray;
+            },
+            message: "What is the employees role?",
+          },
+          {
+            name: "manager",
+            type: "rawlist",
+            choices() {
+              let managerArray = ["None"];
+              results[1].forEach((managerName) => {
+                const manager = `${managerName.first_name} ${managerName.last_name}`;
+                managerArray.push(manager);
+              });
+              return managerArray;
+            },
+            message: "What is the employees role?",
+          },
+        ])
+        .then((input) => {
+          console.log(input);
+          IdQuery(input);
+        });
+    }
+  );
+};
+
+const newRole = () => {
+  connection.query(`SELECT name FROM department`, (err, result) => {
     if (err) throw err;
-    console.log(results, typeof results);
+
     inquirer
       .prompt([
         {
-          name: "first_name",
+          name: "roleName",
           type: "input",
-          message: "What is the employees first name?",
+          message: "What is the role title?",
         },
         {
-          name: "last_name",
+          name: "salary",
           type: "input",
-          message: "What is the employees last name?",
+          message: "What is the salary?",
         },
         {
-          name: "role",
+          name: "department",
           type: "rawlist",
           choices() {
-            let choiceArray = [];
-            results.forEach((roleTitle) => {
-              choiceArray.push(roleTitle.title);
+            let departmentArray = [];
+            result.forEach((departmentName) => {
+              departmentArray.push(departmentName);
             });
-            return choiceArray;
+            return departmentArray;
           },
-          message: "What is the employees role?",
         },
       ])
-      .then((input) => {
-        console.log(input);
-        roleIdQuery(input);
+      .then((answers) => {
+        departmentIDQuery(answers);
       });
   });
 };
@@ -117,7 +181,7 @@ const newDepQuery = (input) => {
     })
     .then((err, res) => {
       if (err) throw err;
-      console.log(res);
+      console.log(`New Department has been added`);
       init();
     });
 };
@@ -128,25 +192,74 @@ const employQuery = (input, response) => {
     {
       first_name: input.first_name,
       last_name: input.last_name,
-      role_id: response[0].id,
+      role_id: response[0][0].id,
+      manager_id: response[1][0].id || 0,
     },
     (err, res) => {
       if (err) throw err;
-      console.log(res);
+      console.log(`Your new employee has been added`);
+      init();
+    }
+  );
+};
+const employManagerQuery = (input, response) => {
+  connection.query(
+    `INSERT INTO employee SET ?`,
+    {
+      first_name: input.first_name,
+      last_name: input.last_name,
+      role_id: response[0][0].id,
+    },
+    (err, res) => {
+      if (err) throw err;
+      console.log(`Your new employee has been added`);
+      init();
     }
   );
 };
 
-const roleIdQuery = (input) => {
+const IdQuery = (input) => {
+  const managerName = input.manager.split(" ");
+
   connection.query(
-    `SELECT id FROM role WHERE ?`,
+    `SELECT id FROM role WHERE title = ?; SELECT id FROM employee WHERE first_name = ?`,
+    [input.role, managerName[0]],
+    (err, res) => {
+      if (err) throw err;
+      console.log(res[0][0], res[1][0]);
+      if (res[1][0]) {
+        employQuery(input, res);
+      } else {
+        employManagerQuery(input, res);
+      }
+    }
+  );
+};
+
+const departmentIDQuery = (input) => {
+  connection.query(
+    `SELECT id FROM department WHERE ?`,
     {
-      title: input.role,
+      name: input.department,
     },
     (err, res) => {
       if (err) throw err;
-      console.log(res);
-      employQuery(input, res);
+      roleQuery(input, res);
+    }
+  );
+};
+
+const roleQuery = (input, results) => {
+  connection.query(
+    `INSERT INTO role SET ?`,
+    {
+      title: input.roleName,
+      salary: input.salary,
+      department_id: results[0].id,
+    },
+    (err, res) => {
+      console.log(`New Role has been added`);
+      init();
     }
   );
 };
