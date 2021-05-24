@@ -2,6 +2,9 @@ const mysql = require("mysql");
 const inquirer = require("inquirer");
 require("dotenv").config();
 const cTable = require("console.table");
+const logo = require("asciiart-logo");
+const config = require("./package.json");
+console.log(logo(config).render());
 
 const connection = mysql.createConnection({
   host: "localhost",
@@ -27,6 +30,7 @@ const init = () => {
           "View Departments",
           "View Roles",
           "View Employees",
+          "View Employees By Manager",
           "Update Employee Role",
           "Update Employee Manager",
           "Delete Department",
@@ -49,6 +53,8 @@ const init = () => {
         viewRole();
       } else if (data.select === "View Employees") {
         viewEmployee();
+      } else if (data.select === "View Employees By Manager") {
+        viewByManager();
       } else if (data.select === "Update Employee Role") {
         updateRole();
       } else if (data.select === "Update Employee Manager") {
@@ -103,6 +109,17 @@ const viewRole = () => {
     }
   );
 };
+const viewByManager = () => {
+  connection.query(
+    `SELECT CONCAT(manager.first_name, " ", manager.last_name) AS manager, CONCAT (employee.first_name, " ",employee.last_name) AS employee
+  FROM employee manager
+  LEFT JOIN employee ON manager.id = employee.manager_id;`,
+    (err, res) => {
+      if (err) throw err;
+      console.table(res);
+    }
+  );
+};
 
 const newDep = () => {
   inquirer
@@ -128,7 +145,11 @@ const newDep = () => {
         },
         (err, res) => {
           if (err) throw err;
-          console.log(`New Department has been added`);
+          console.table(
+            "--------------------------------",
+            "New Department has been added",
+            "--------------------------------"
+          );
           init();
         }
       );
@@ -212,7 +233,11 @@ const newEmploy = () => {
               },
               (err, res) => {
                 if (err) throw err;
-                console.log(`Your new employee has been added`);
+                console.table(
+                  "--------------------------------",
+                  `Your new employee has been added`,
+                  "--------------------------------"
+                );
                 init();
               }
             );
@@ -234,7 +259,11 @@ const newEmploy = () => {
               },
               (err, res) => {
                 if (err) throw err;
-                console.log(`Your new employee has been added`);
+                console.table(
+                  "--------------------------------",
+                  `Your new employee has been added`,
+                  "--------------------------------"
+                );
                 init();
               }
             );
@@ -302,7 +331,11 @@ const newRole = () => {
             department_id: departmentId.id,
           },
           (err, res) => {
-            console.log(`New Role has been added`);
+            console.table(
+              "-----------------------",
+              `New Role has been added`,
+              "-----------------------"
+            );
             init();
           }
         );
@@ -364,7 +397,11 @@ const updateRole = () => {
             [role.id, employee.id],
             (err, res) => {
               if (err) throw err;
-              console.log(`Updated Complete`);
+              console.table(
+                "------------------------------",
+                `Employee Role has been Updated`,
+                "------------------------------"
+              );
               init();
             }
           );
@@ -427,7 +464,11 @@ const updateManager = () => {
             [manager.id, employee.id],
             (err, res) => {
               if (err) throw err;
-              console.log(`Employee has been Updated`);
+              console.table(
+                "---------------------------------",
+                `Employee Manager has been Updated`,
+                "---------------------------------"
+              );
               init();
             }
           );
@@ -436,6 +477,7 @@ const updateManager = () => {
   );
 };
 
+//Since they are foreign keys for other tables, I first Update the linking table and set department id to null. Then I can easily delete the department without causing errors (similar logic for delete Role and delete User)
 const deleteDepartment = () => {
   let departmentArray = [];
 
@@ -484,7 +526,11 @@ const deleteDepartment = () => {
             [department.id],
             (err, res) => {
               if (err) throw err;
-              console.log(`Department has been Deleted`);
+              console.table(
+                "---------------------------",
+                `Department has been Deleted`,
+                "---------------------------"
+              );
               init();
             }
           );
@@ -540,7 +586,11 @@ const deleteRole = () => {
             [role.id],
             (err, res) => {
               if (err) throw err;
-              console.log(`Role has been Deleted`);
+              console.table(
+                "---------------------",
+                `Role has been Deleted`,
+                "---------------------"
+              );
               init();
             }
           );
@@ -595,7 +645,11 @@ const deleteEmploy = () => {
             [employee.id],
             (err, res) => {
               if (err) throw err;
-              console.log(`Employee has been Deleted`);
+              console.table(
+                "-------------------------",
+                `Employee has been Deleted`,
+                "-------------------------"
+              );
               init();
             }
           );
