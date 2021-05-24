@@ -24,21 +24,17 @@ This program uses Node.js, Inquirer.js and MySQL
 
 The user is presented with multiple options for what function they wish to run. Prompts are used to ask the relevant questions to perform the chosen task and the result will be displayed in the console.
 
+Demo Video: https://drive.google.com/file/d/1SMwpSwK99Yh1EFFU6p4L-PN4YFIteEBw/view
+
 ![Welcome Page](./Images/opening-page.png)
-
-
 
 ![Useage Demonstration](./Images/demo.png)
 
-
-
 ![View Employees Demo](./Images/view-employees.png)
-
 
 # Contributing
 
 Created by Madeleine O'Dea
-
 
 # License
 
