@@ -1,10 +1,10 @@
 {
   "name": "employee-tracker",
   "version": "1.0.0",
-  "description": "",
   "main": "connection.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node connection.js"
   },
   "repository": {
     "type": "git",
@@ -23,5 +23,7 @@
     "dotenv": "^10.0.0",
     "inquirer": "^8.1.0",
     "mysql": "^2.18.1"
-  }
+  },
+  "devDependencies": {},
+  "description": ""
 }
