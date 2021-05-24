@@ -66,8 +66,7 @@ const init = () => {
       } else if (data.select === "Delete Employee") {
         deleteEmploy();
       } else if (data.select === "Exit") {
-        connection.close();
-        return;
+        connection.end();
       }
     });
 };
@@ -113,10 +112,11 @@ const viewByManager = () => {
   connection.query(
     `SELECT CONCAT(manager.first_name, " ", manager.last_name) AS manager, CONCAT (employee.first_name, " ",employee.last_name) AS employee
   FROM employee manager
-  LEFT JOIN employee ON manager.id = employee.manager_id;`,
+  INNER JOIN employee ON manager.id = employee.manager_id;`,
     (err, res) => {
       if (err) throw err;
       console.table(res);
+      init();
     }
   );
 };
@@ -211,7 +211,7 @@ const newEmploy = () => {
               });
               return managerArray;
             },
-            message: "What is the employees role?",
+            message: "Who is the employees manager?",
           },
         ])
         .then((answer) => {
@@ -569,13 +569,12 @@ const deleteRole = () => {
           });
 
           results[1].forEach((roleId) => {
-            if (roleId.id === role.id) {
+            if (roleId.role_id === role.id) {
               connection.query(
                 `UPDATE employee SET role_id = NULL WHERE role_id =?`,
                 [role.id],
                 (err, res) => {
                   if (err) throw err;
-                  console.log(res);
                 }
               );
             }
