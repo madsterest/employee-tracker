@@ -12,6 +12,7 @@ const connection = mysql.createConnection({
   multipleStatements: true,
 });
 
+//Reoccuring function that gives the user the choice of action
 const init = () => {
   inquirer
     .prompt([
@@ -65,6 +66,7 @@ const init = () => {
     });
 };
 
+//Query that selects all important information about the employee. The first inner join ensures that the employee role_id will be displayed with the role title. The next is for the department id. The last Ensures the manager id is displayed as the managers name
 const viewEmployee = () => {
   connection.query(
     `SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name, " ", manager.last_name) AS manager 
@@ -109,13 +111,20 @@ const newDep = () => {
         type: "input",
         name: "depName",
         message: "What is the department name?",
+        validate(input) {
+          if (!input) {
+            return `Must input a valid department name`;
+          } else {
+            return true;
+          }
+        },
       },
     ])
     .then((input) => {
       connection.query(
         `INSERT INTO department SET ?`,
         {
-          name: input.depName,
+          name: input.depName.trim(),
         },
         (err, res) => {
           if (err) throw err;
@@ -126,6 +135,7 @@ const newDep = () => {
     });
 };
 
+//The id and name of the Managersis selected as well as the role title and its id. A choices function is used to display the different options from the database query. The results of the query are compared with the users answer to select the right object in the results array. The corresponding ID's are then used when INSERTing into the database. (Similiar is done for newRole function)
 const newEmploy = () => {
   let choiceArray = [];
   let managerArray = ["None"];
@@ -140,11 +150,25 @@ const newEmploy = () => {
             name: "first_name",
             type: "input",
             message: "What is the employees first name?",
+            validate(input) {
+              if (!input) {
+                return `Please insert a valid input`;
+              } else {
+                return true;
+              }
+            },
           },
           {
             name: "last_name",
             type: "input",
             message: "What is the employees last name?",
+            validate(input) {
+              if (!input) {
+                return `Please insert a valid input`;
+              } else {
+                return true;
+              }
+            },
           },
           {
             name: "role",
@@ -231,11 +255,25 @@ const newRole = () => {
           name: "roleName",
           type: "input",
           message: "What is the role title?",
+          validate(input) {
+            if (!input) {
+              return `Please insert a valid input`;
+            } else {
+              return true;
+            }
+          },
         },
         {
           name: "salary",
           type: "input",
           message: "What is the salary?",
+          validate(input) {
+            if (!input || isNaN(input) === true) {
+              return `Please insert a valid number`;
+            } else {
+              return true;
+            }
+          },
         },
         {
           name: "department",
@@ -280,7 +318,7 @@ const updateRole = () => {
     `SELECT id, CONCAT(first_name, " ", last_name) AS name FROM employee; SELECT id, title FROM role`,
     (err, result) => {
       if (err) throw err;
-      console.log(result);
+
       inquirer
         .prompt([
           {
@@ -401,89 +439,120 @@ const updateManager = () => {
 const deleteDepartment = () => {
   let departmentArray = [];
 
-  connection.query(`SELECT id,name FROM department`, (err, res) => {
-    if (err) throw err;
+  connection.query(
+    `SELECT id,name FROM department; SELECT department_id FROM role`,
+    (err, res) => {
+      if (err) throw err;
 
-    inquirer
-      .prompt([
-        {
-          name: "department",
-          type: "rawlist",
-          choices() {
-            res.forEach((departName) => {
-              departmentArray.push(departName.name);
-            });
-            return departmentArray;
+      inquirer
+        .prompt([
+          {
+            name: "department",
+            type: "rawlist",
+            choices() {
+              res[0].forEach((departName) => {
+                departmentArray.push(departName.name);
+              });
+              return departmentArray;
+            },
+            message: "Which Department would you like to delete?",
           },
-          message: "Which Department would you like to delete?",
-        },
-      ])
-      .then((answer) => {
-        let department;
+        ])
+        .then((answer) => {
+          let department;
 
-        res.forEach((departmentName) => {
-          if (departmentName.name === answer.department) {
-            department = departmentName;
-          }
+          res[0].forEach((departmentName) => {
+            if (departmentName.name === answer.department) {
+              department = departmentName;
+            }
+          });
+
+          res[1].forEach((departId) => {
+            if (departId.department_id === department.id) {
+              connection.query(
+                `UPDATE role SET department_id = NULL WHERE department_id =?`,
+                [department.id],
+                (err, res) => {
+                  if (err) throw err;
+                }
+              );
+            }
+          });
+
+          connection.query(
+            `DELETE FROM department WHERE id = ?`,
+            [department.id],
+            (err, res) => {
+              if (err) throw err;
+              console.log(`Department has been Deleted`);
+              init();
+            }
+          );
         });
-
-        connection.query(
-          `DELETE FROM department WHERE id = ?`,
-          [department.id],
-          (err, res) => {
-            if (err) throw err;
-            console.log(`Department has been Deleted`);
-            init();
-          }
-        );
-      });
-  });
+    }
+  );
 };
 
 const deleteRole = () => {
   let roleArray = [];
-  connection.query(`SELECT id, title FROM role`, (err, results) => {
-    if (err) throw err;
+  connection.query(
+    `SELECT id, title FROM role; SELECT role_id FROM employee`,
+    (err, results) => {
+      if (err) throw err;
 
-    inquirer
-      .prompt([
-        {
-          name: "roleTitle",
-          type: "rawlist",
-          choices() {
-            results.forEach((roleName) => {
-              roleArray.push(roleName.title);
-            });
-            return roleArray;
+      inquirer
+        .prompt([
+          {
+            name: "roleTitle",
+            type: "rawlist",
+            choices() {
+              results[0].forEach((roleName) => {
+                roleArray.push(roleName.title);
+              });
+              return roleArray;
+            },
+            message: "Which Role would you like to delete",
           },
-          message: "Which Role would you like to delete",
-        },
-      ])
-      .then((answer) => {
-        let role;
-        results.forEach((roleChoice) => {
-          if (roleChoice.title === answer.roleTitle) {
-            role = roleChoice;
-          }
-        });
+        ])
+        .then((answer) => {
+          let role;
+          results[0].forEach((roleChoice) => {
+            if (roleChoice.title === answer.roleTitle) {
+              role = roleChoice;
+            }
+          });
 
-        connection.query(
-          `DELETE FROM role WHERE id =?`,
-          [role.id],
-          (err, res) => {
-            if (err) throw err;
-            console.log(`Role has been Deleted`);
-            init();
-          }
-        );
-      });
-  });
+          results[1].forEach((roleId) => {
+            if (roleId.id === role.id) {
+              connection.query(
+                `UPDATE employee SET role_id = NULL WHERE role_id =?`,
+                [role.id],
+                (err, res) => {
+                  if (err) throw err;
+                  console.log(res);
+                }
+              );
+            }
+          });
+
+          connection.query(
+            `DELETE FROM role WHERE id =?`,
+            [role.id],
+            (err, res) => {
+              if (err) throw err;
+              console.log(`Role has been Deleted`);
+              init();
+            }
+          );
+        });
+    }
+  );
 };
 
 const deleteEmploy = () => {
   let employArray = [];
   connection.query(
-    `SELECT id, CONCAT(first_name, " ", last_name) AS name FROM employee`,
+    `SELECT id, CONCAT(first_name, " ", last_name) AS name, manager_id FROM employee`,
     (err, results) => {
       if (err) throw err;
 
@@ -507,6 +576,17 @@ const deleteEmploy = () => {
           results.forEach((employChoice) => {
             if (employChoice.name === answer.employeeName) {
               employee = employChoice;
+            }
+          });
+          results.forEach((employManager) => {
+            if (employee.id === employManager.manager_id) {
+              connection.query(
+                `UPDATE employee SET manager_id = NULL WHERE manager_id =?`,
+                [employee.id],
+                (err, res) => {
+                  if (err) throw err;
+                }
+              );
             }
           });
 
