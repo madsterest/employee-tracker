@@ -26,7 +26,11 @@ const init = () => {
           "View Departments",
           "View Roles",
           "View Employees",
-          "Update Employee Roles",
+          "Update Employee Role",
+          "Update Employee Manager",
+          "Delete Department",
+          "Delete Role",
+          "Delete Employee",
           "Exit",
         ],
       },
@@ -44,8 +48,16 @@ const init = () => {
         viewRole();
       } else if (data.select === "View Employees") {
         viewEmployee();
-      } else if (data.select === "Update Employee Roles") {
+      } else if (data.select === "Update Employee Role") {
         updateRole();
+      } else if (data.select === "Update Employee Manager") {
+        updateManager();
+      } else if (data.select === "Delete Department") {
+        deleteDepartment();
+      } else if (data.select === "Delete Role") {
+        deleteRole();
+      } else if (data.select === "Delete Employee") {
+        deleteEmploy();
       } else if (data.select === "Exit") {
         connection.close();
         return;
@@ -119,7 +131,7 @@ const newEmploy = () => {
   let managerArray = ["None"];
 
   connection.query(
-    `SELECT title FROM role; SELECT first_name, last_name FROM employee`,
+    `SELECT id, title FROM role; SELECT id, CONCAT(first_name, " ", last_name ) AS name FROM employee`,
     (err, results) => {
       if (err) throw err;
       inquirer
@@ -150,8 +162,7 @@ const newEmploy = () => {
             type: "rawlist",
             choices() {
               results[1].forEach((managerName) => {
-                const manager = `${managerName.first_name} ${managerName.last_name}`;
-                managerArray.push(manager);
+                managerArray.push(managerName.name);
               });
               return managerArray;
             },
@@ -159,8 +170,13 @@ const newEmploy = () => {
           },
         ])
         .then((answer) => {
-          console.log(answer);
-          let roleId = choiceArray.indexOf(answer.role) + 1;
+          let roleId;
+
+          results[0].forEach((roleTitle) => {
+            if (roleTitle.title === answer.role) {
+              roleId = roleTitle;
+            }
+          });
 
           if (answer.manager === "None") {
             connection.query(
@@ -168,7 +184,7 @@ const newEmploy = () => {
               {
                 first_name: answer.first_name,
                 last_name: answer.last_name,
-                role_id: roleId,
+                role_id: roleId.id,
               },
               (err, res) => {
                 if (err) throw err;
@@ -177,14 +193,20 @@ const newEmploy = () => {
               }
             );
           } else {
-            let managerId = managerArray.indexOf(answer.manager);
+            let managerId;
+            results[1].forEach((managerName) => {
+              if (managerName.name === answer.manager) {
+                managerId = managerName;
+              }
+            });
+
             connection.query(
               `INSERT INTO employee SET ?`,
               {
                 first_name: answer.first_name,
                 last_name: answer.last_name,
-                role_id: roleId,
-                manager_id: managerId,
+                role_id: roleId.id,
+                manager_id: managerId.id,
               },
               (err, res) => {
                 if (err) throw err;
@@ -200,7 +222,7 @@ const newEmploy = () => {
 
 const newRole = () => {
   let departmentArray = [];
-  connection.query(`SELECT name FROM department`, (err, result) => {
+  connection.query(`SELECT id, name FROM department`, (err, result) => {
     if (err) throw err;
 
     inquirer
@@ -220,20 +242,26 @@ const newRole = () => {
           type: "rawlist",
           choices() {
             result.forEach((departmentName) => {
-              departmentArray.push(departmentName);
+              departmentArray.push(departmentName.name);
             });
             return departmentArray;
           },
         },
       ])
       .then((answer) => {
-        let departmentId = departmentArray.indexOf(answer.department) + 1;
+        let departmentId;
+        result.forEach((department) => {
+          if (department.name === answer.department) {
+            departmentId = department;
+          }
+        });
+
         connection.query(
           `INSERT INTO role SET ?`,
           {
             title: answer.roleName,
             salary: answer.salary,
-            department_id: departmentId,
+            department_id: departmentId.id,
           },
           (err, res) => {
             console.log(`New Role has been added`);
@@ -249,7 +277,7 @@ const updateRole = () => {
   let roleArray = [];
 
   connection.query(
-    `SELECT CONCAT(first_name, " ", last_name) AS name FROM employee; SELECT title FROM role`,
+    `SELECT id, CONCAT(first_name, " ", last_name) AS name FROM employee; SELECT id, title FROM role`,
     (err, result) => {
       if (err) throw err;
       console.log(result);
@@ -279,15 +307,215 @@ const updateRole = () => {
           },
         ])
         .then((answer) => {
-          let employId = employArray.indexOf(answer.employeeName) + 1;
-          let roleId = roleArray.indexOf(answer.roleName) + 1;
+          let employee;
+          let role;
+
+          result[0].forEach((employName) => {
+            if (employName.name === answer.employeeName) {
+              employee = employName;
+            }
+          });
+          result[1].forEach((roleName) => {
+            if (roleName.title === answer.roleName) {
+              role = roleName;
+            }
+          });
 
           connection.query(
             `UPDATE employee SET role_id=? WHERE id=?`,
-            [roleId, employId],
+            [role.id, employee.id],
             (err, res) => {
               if (err) throw err;
               console.log(`Updated Complete`);
+              init();
+            }
+          );
+        });
+    }
+  );
+};
+
+const updateManager = () => {
+  let nameArray = [];
+  let managerArray = [];
+
+  connection.query(
+    `SELECT id, CONCAT(first_name," ",last_name) AS name FROM employee`,
+    (err, res) => {
+      if (err) throw err;
+
+      inquirer
+        .prompt([
+          {
+            name: "employList",
+            type: "rawlist",
+            choices() {
+              res.forEach((employName) => {
+                nameArray.push(employName.name);
+              });
+              return nameArray;
+            },
+            message: "Which employee would you like to update?",
+          },
+          {
+            name: "managerList",
+            type: "rawlist",
+            choices() {
+              res.forEach((managerName) => {
+                managerArray.push(managerName.name);
+              });
+              return managerArray;
+            },
+            message: "Who is their new manager?",
+          },
+        ])
+        .then((answer) => {
+          let employee;
+          let manager;
+
+          res.forEach((employName) => {
+            if (employName.name === answer.employList) {
+              employee = employName;
+            }
+          });
+          res.forEach((managerName) => {
+            if (managerName.name === answer.managerList) {
+              manager = managerName;
+            }
+          });
+
+          connection.query(
+            `UPDATE employee SET manager_id =? WHERE id = ?`,
+            [manager.id, employee.id],
+            (err, res) => {
+              if (err) throw err;
+              console.log(`Employee has been Updated`);
+              init();
+            }
+          );
+        });
+    }
+  );
+};
+
+const deleteDepartment = () => {
+  let departmentArray = [];
+
+  connection.query(`SELECT id,name FROM department`, (err, res) => {
+    if (err) throw err;
+
+    inquirer
+      .prompt([
+        {
+          name: "department",
+          type: "rawlist",
+          choices() {
+            res.forEach((departName) => {
+              departmentArray.push(departName.name);
+            });
+            return departmentArray;
+          },
+          message: "Which Department would you like to delete?",
+        },
+      ])
+      .then((answer) => {
+        let department;
+
+        res.forEach((departmentName) => {
+          if (departmentName.name === answer.department) {
+            department = departmentName;
+          }
+        });
+
+        connection.query(
+          `DELETE FROM department WHERE id = ?`,
+          [department.id],
+          (err, res) => {
+            if (err) throw err;
+            console.log(`Department has been Deleted`);
+            init();
+          }
+        );
+      });
+  });
+};
+
+const deleteRole = () => {
+  let roleArray = [];
+  connection.query(`SELECT id, title FROM role`, (err, results) => {
+    if (err) throw err;
+
+    inquirer
+      .prompt([
+        {
+          name: "roleTitle",
+          type: "rawlist",
+          choices() {
+            results.forEach((roleName) => {
+              roleArray.push(roleName.title);
+            });
+            return roleArray;
+          },
+          message: "Which Role would you like to delete",
+        },
+      ])
+      .then((answer) => {
+        let role;
+        results.forEach((roleChoice) => {
+          if (roleChoice.title === answer.roleTitle) {
+            role = roleChoice;
+          }
+        });
+
+        connection.query(
+          `DELETE FROM role WHERE id =?`,
+          [role.id],
+          (err, res) => {
+            if (err) throw err;
+            console.log(`Role has been Deleted`);
+            init();
+          }
+        );
+      });
+  });
+};
+
+const deleteEmploy = () => {
+  let employArray = [];
+  connection.query(
+    `SELECT id, CONCAT(first_name, " ", last_name) AS name FROM employee`,
+    (err, results) => {
+      if (err) throw err;
+
+      inquirer
+        .prompt([
+          {
+            name: "employeeName",
+            type: "rawlist",
+            choices() {
+              results.forEach((employ) => {
+                employArray.push(employ.name);
+              });
+              return employArray;
+            },
+            message: "Which employee would you like to delete?",
+          },
+        ])
+        .then((answer) => {
+          let employee;
+
+          results.forEach((employChoice) => {
+            if (employChoice.name === answer.employeeName) {
+              employee = employChoice;
+            }
+          });
+
+          connection.query(
+            `DELETE FROM employee WHERE id =?`,
+            [employee.id],
+            (err, res) => {
+              if (err) throw err;
+              console.log(`Employee has been Deleted`);
               init();
             }
           );
